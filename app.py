@@ -10,6 +10,7 @@ from transformers import MarianMTModel, MarianTokenizer
 from werkzeug.utils import secure_filename
 from gtts import gTTS
 from pydub import AudioSegment
+from deep_translator import GoogleTranslator
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -45,7 +46,7 @@ def init_models():
         device = "cpu"
         print("Utilisation du CPU")
     
-    # Modèle de traduction français -> anglais
+    # Modèle de traduction français -> anglais (gardé pour compatibilité)
     print("Chargement du modèle de traduction...")
     model_name = "Helsinki-NLP/opus-mt-fr-en"
     translation_tokenizer = MarianTokenizer.from_pretrained(model_name)
@@ -57,53 +58,139 @@ def init_models():
     
     print("Tous les modèles sont initialisés!")
 
-def translate_text(text, source_lang="fr", target_lang="en"):
-    """Traduit le texte du français vers l'anglais"""
+def is_text_corrupted(text):
+    """Vérifie si le texte traduit est corrompu (répétitions anormales, caractères étranges)"""
+    if not text or len(text.strip()) == 0:
+        return True
+    
+    # Détecter les répétitions excessives de mots
+    words = text.split()
+    if len(words) > 3:
+        # Compter les mots répétés consécutivement
+        consecutive_repeats = 0
+        for i in range(1, len(words)):
+            if words[i] == words[i-1]:
+                consecutive_repeats += 1
+                if consecutive_repeats >= 2:  # Plus de 2 répétitions consécutives
+                    return True
+            else:
+                consecutive_repeats = 0
+    
+    # Détecter les caractères de contrôle ou encodage bizarre
+    if any(ord(char) < 32 and char not in '\n\r\t' for char in text):
+        return True
+    
+    # Détecter les répétitions de syllabes (comme "Tagalag Tagalag")
+    if len(set(words)) < len(words) * 0.5 and len(words) > 4:
+        return True
+    
+    return False
+
+def translate_text(text, target_lang='en'):
+    """Traduit le texte français vers la langue cible spécifiée avec validation"""
+    
     try:
-        # Préparation du texte pour la traduction
-        inputs = translation_tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+        # Utilisation de GoogleTranslator de deep_translator pour supporter plus de langues
+        translator = GoogleTranslator(source='fr', target=target_lang)
+        result = translator.translate(text)
         
-        # Déplacer vers le bon device
-        device = next(translation_model.parameters()).device
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        # Validation du résultat
+        if is_text_corrupted(result):
+            print(f"Texte traduit corrompu détecté pour {target_lang}: {result}")
+            # Essayer une traduction en anglais comme fallback
+            if target_lang != 'en':
+                print(f"Fallback vers l'anglais pour éviter le texte corrompu")
+                en_translator = GoogleTranslator(source='fr', target='en')
+                fallback_result = en_translator.translate(text)
+                if not is_text_corrupted(fallback_result):
+                    return fallback_result
+            return "Traduction non disponible pour cette langue"
         
-        # Génération de la traduction
-        with torch.no_grad():
-            outputs = translation_model.generate(**inputs, max_length=512, num_beams=4)
-        
-        # Décodage du résultat
-        translated_text = translation_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return translated_text
+        return result
     
     except Exception as e:
-        print(f"Erreur lors de la traduction: {e}")
-        return f"Erreur de traduction: {str(e)}"
+        print(f"Erreur lors de la traduction vers {target_lang}: {e}")
+        # Fallback vers le modèle Marian pour l'anglais si Google Translate échoue
+        if target_lang == 'en' and translation_model and translation_tokenizer:
+            try:
+                inputs = translation_tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+                # Déplacer vers le bon device
+                device = next(translation_model.parameters()).device
+                inputs = {k: v.to(device) for k, v in inputs.items()}
+                with torch.no_grad():
+                    outputs = translation_model.generate(**inputs, max_length=512, num_beams=4, early_stopping=True)
+                translated_text = translation_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                return translated_text
+            except Exception as fallback_error:
+                print(f"Erreur du fallback Marian: {fallback_error}")
+        
+        return "Erreur de traduction"
 
-def synthesize_speech(text):
-    """Synthèse vocale avec gTTS"""
+def synthesize_speech(text, lang='en'):
+    """Synthétise la parole à partir du texte traduit dans la langue spécifiée"""
     try:
         print(f"Synthèse vocale demandée pour: {text}")
         
-        # Créer un objet gTTS pour l'anglais
-        tts = gTTS(text=text, lang='en', slow=False)
+        # Vérifier si le texte est valide avant la synthèse
+        if is_text_corrupted(text):
+            print(f"Texte corrompu détecté, impossible de synthétiser: {text}")
+            raise ValueError("Texte corrompu détecté")
         
-        # Créer un fichier temporaire
-        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_file:
-            tts.save(tmp_file.name)
-            
-            # Lire le fichier et l'encoder en base64
-            with open(tmp_file.name, 'rb') as audio_file:
-                audio_data = audio_file.read()
-                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-            
-            # Supprimer le fichier temporaire
-            os.unlink(tmp_file.name)
-            
-            return audio_base64
+        # Mapping des codes de langue pour gTTS (certaines langues utilisent des codes différents)
+        lang_mapping = {
+            'zh-cn': 'zh',  # Chinois simplifié
+            'zh-tw': 'zh-tw',  # Chinois traditionnel
+            'pt-br': 'pt',  # Portugais brésilien -> portugais
+            'nb': 'no',  # Norvégien bokmål -> norvégien
+            'nn': 'no',  # Norvégien nynorsk -> norvégien
+        }
+        
+        # Langues supportées par gTTS (liste non exhaustive des principales)
+        supported_langs = {
+            'af', 'ar', 'bg', 'bn', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 
+            'eo', 'es', 'et', 'fi', 'fr', 'gu', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 
+            'it', 'ja', 'jw', 'km', 'kn', 'ko', 'la', 'lv', 'mk', 'ml', 'mr', 'my', 
+            'ne', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'si', 'sk', 'sq', 'sr', 'su', 
+            'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh'
+        }
+        
+        # Utiliser le mapping si disponible, sinon utiliser le code original
+        gtts_lang = lang_mapping.get(lang, lang)
+        
+        # Vérifier si la langue est supportée par gTTS
+        if gtts_lang not in supported_langs:
+            print(f"Langue {gtts_lang} non supportée par gTTS, fallback vers l'anglais")
+            gtts_lang = 'en'
+        
+        # Créer un objet gTTS pour la langue spécifiée
+        tts = gTTS(text=text, lang=gtts_lang, slow=False)
+        
+        # Sauvegarde dans un buffer en mémoire
+        audio_buffer = io.BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
+        
+        # Encodage en base64 pour l'envoi au frontend
+        audio_base64 = base64.b64encode(audio_buffer.getvalue()).decode('utf-8')
+        
+        return audio_base64
             
     except Exception as e:
-        print(f"Erreur lors de la synthèse vocale: {e}")
-        return None
+        print(f"Erreur lors de la synthèse vocale en {lang}: {e}")
+        # Fallback vers l'anglais si la langue n'est pas supportée
+        try:
+            print("Tentative de fallback vers l'anglais...")
+            fallback_tts = gTTS(text=text, lang='en', slow=False)
+            audio_buffer = io.BytesIO()
+            fallback_tts.write_to_fp(audio_buffer)
+            audio_buffer.seek(0)
+            audio_base64 = base64.b64encode(audio_buffer.getvalue()).decode('utf-8')
+            return audio_base64
+        except Exception as fallback_error:
+            print(f"Erreur du fallback anglais: {fallback_error}")
+            raise Exception(f"Erreur lors de la génération audio: {str(e)}")
+        
+        raise Exception(f"Erreur lors de la génération audio: {str(e)}")
 
 def recognize_speech_from_file(audio_file_path):
     """Reconnaissance vocale à partir d'un fichier audio avec conversion automatique"""
@@ -162,12 +249,13 @@ def translate():
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
+        target_lang = data.get('target_lang', 'en')  # Langue cible, anglais par défaut
         
         if not text:
             return jsonify({'error': 'Aucun texte fourni'}), 400
         
         # Traduction
-        translated_text = translate_text(text)
+        translated_text = translate_text(text, target_lang)
         
         return jsonify({
             'original_text': text,
@@ -184,26 +272,28 @@ def synthesize():
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
+        lang = data.get('lang', 'en')  # Langue pour la synthèse vocale
         
         if not text:
             return jsonify({'error': 'Aucun texte fourni'}), 400
         
         # Synthèse vocale avec gTTS
-        audio_base64 = synthesize_speech(text)
-        
-        if audio_base64 is None:
+        try:
+            audio_base64 = synthesize_speech(text, lang)
             return jsonify({
-                'error': 'Erreur lors de la génération audio',
+                'audio': audio_base64,
+                'success': True
+            })
+        except Exception as synthesis_error:
+            print(f"Erreur de synthèse vocale: {synthesis_error}")
+            return jsonify({
+                'error': f'Erreur lors de la génération audio: {str(synthesis_error)}',
                 'text': text,
                 'success': False
             }), 500
-        
-        return jsonify({
-            'audio_data': audio_base64,
-            'success': True
-        })
     
     except Exception as e:
+        print(f"Erreur générale dans /synthesize: {e}")
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/translate_and_synthesize', methods=['POST'])
@@ -212,15 +302,16 @@ def translate_and_synthesize():
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
+        target_lang = data.get('target_lang', 'en')  # Langue cible pour la traduction
         
         if not text:
             return jsonify({'error': 'Aucun texte fourni'}), 400
         
         # Traduction
-        translated_text = translate_text(text)
+        translated_text = translate_text(text, target_lang)
         
-        # Synthèse vocale
-        audio_base64 = synthesize_speech(translated_text)
+        # Synthèse vocale dans la langue cible
+        audio_base64 = synthesize_speech(translated_text, target_lang)
         
         if audio_base64 is None:
             return jsonify({
@@ -272,71 +363,53 @@ def upload_audio():
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
-    """Route complète: reconnaissance vocale + traduction depuis enregistrement microphone"""
+    """Route pour traiter l'audio (reconnaissance + traduction + synthèse)"""
     try:
-        # Vérifier si c'est un fichier uploadé (ancien système) ou des données blob (nouveau système)
-        if 'audio' in request.files:
-            # Ancien système de fichier uploadé
-            file = request.files['audio']
-            if file.filename == '':
-                return jsonify({'error': 'Aucun fichier sélectionné'}), 400
-            
-            # Sauvegarde temporaire du fichier
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            
+        data = request.get_json()
+        audio_data = data.get('audio')
+        target_lang = data.get('target_lang', 'en')  # Langue cible pour la traduction
+        
+        if not audio_data:
+            return jsonify({'error': 'Aucune donnée audio fournie'}), 400
+        
+        # Décoder les données audio base64
+        try:
+            audio_bytes = base64.b64decode(audio_data.split(',')[1] if ',' in audio_data else audio_data)
+        except Exception as e:
+            return jsonify({'error': f'Erreur de décodage audio: {str(e)}'}), 400
+        
+        # Sauvegarder temporairement le fichier audio
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as temp_file:
+            temp_file.write(audio_bytes)
+            temp_filename = temp_file.name
+        
+        try:
             # Reconnaissance vocale
-            recognized_text = recognize_speech_from_file(filepath)
+            recognized_text = recognize_speech_from_file(temp_filename)
             
-            # Suppression du fichier temporaire
-            os.unlink(filepath)
-        else:
-            # Nouveau système d'enregistrement microphone
-            audio_data = request.get_data()
-            if not audio_data:
-                return jsonify({'error': 'Aucune donnée audio fournie'}), 400
+            if not recognized_text or recognized_text == "Erreur de reconnaissance vocale":
+                return jsonify({'error': 'Impossible de reconnaître la parole'}), 400
             
-            # Sauvegarde temporaire des données audio
-            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp_file:
-                tmp_file.write(audio_data)
-                tmp_filepath = tmp_file.name
+            # Traduction vers la langue cible
+            translated_text = translate_text(recognized_text, target_lang)
             
-            # Reconnaissance vocale
-            recognized_text = recognize_speech_from_file(tmp_filepath)
+            # Synthèse vocale dans la langue cible
+            audio_base64 = synthesize_speech(translated_text, target_lang)
             
-            # Suppression du fichier temporaire
-            os.unlink(tmp_filepath)
-        
-        if "Erreur" in recognized_text or "Impossible" in recognized_text:
-            return jsonify({
-                'error': recognized_text,
-                'success': False
-            }), 400
-        
-        # Traduction
-        translated_text = translate_text(recognized_text)
-        
-        # Synthèse vocale
-        audio_base64 = synthesize_speech(translated_text)
-        
-        if audio_base64 is None:
             return jsonify({
                 'recognized_text': recognized_text,
                 'translated_text': translated_text,
-                'error': 'Erreur lors de la synthèse vocale',
-                'success': False
-            }), 500
+                'audio': audio_base64
+            })
         
-        return jsonify({
-            'recognized_text': recognized_text,
-            'translated_text': translated_text,
-            'audio_data': audio_base64,
-            'success': True
-        })
+        finally:
+            # Nettoyer le fichier temporaire
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
     
     except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+        print(f"Erreur dans /process_audio: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Initialisation des modèles au démarrage

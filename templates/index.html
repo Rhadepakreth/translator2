@@ -150,7 +150,7 @@
     <div class="max-w-[1200px] max-h-[900px] w-[70vw] bg-white border border-black">
         <div class="bg-black text-white p-6 md:p-10 text-center border-b border-black">
             <h1 class="text-2xl md:text-4xl mb-2.5 font-bold tracking-tight">TRADUCTEUR INTELLIGENT</h1>
-             <p class="text-base md:text-lg font-normal opacity-80">FRANÇAIS → ANGLAIS AVEC SYNTHÈSE VOCALE IA</p>
+             <p id="languageDisplay" class="text-base md:text-lg font-normal opacity-80">FRANÇAIS → ANGLAIS AVEC SYNTHÈSE VOCALE IA</p>
         </div>
 
         <div class="flex md:flex-row flex-col h-auto">
@@ -184,12 +184,86 @@
             <!-- Panneau de sortie anglais -->
             <div class="flex-1 flex flex-col min-h-[300px] md:min-h-0">
                 <div class="p-4 md:p-5 border-b border-black bg-gray-50">
-                    <h2 class="text-sm font-bold uppercase tracking-wider m-0">
+                    <div class="flex items-center">
                         <svg class="inline-block w-4 h-4 mr-2 align-middle" viewBox="0 0 24 24" fill="currentColor">
                             <rect x="6" y="6" width="12" height="12" fill="#000000"/>
                         </svg>
-                        ANGLAIS
-                    </h2>
+                        <select id="targetLanguage" class="text-sm font-bold uppercase tracking-wider bg-transparent border-none outline-none cursor-pointer text-black">
+                            <option value="en">ANGLAIS</option>
+                            <option value="es">ESPAGNOL</option>
+                            <option value="de">ALLEMAND</option>
+                            <option value="it">ITALIEN</option>
+                            <option value="pt">PORTUGAIS</option>
+                            <option value="ru">RUSSE</option>
+                            <option value="zh">CHINOIS</option>
+                            <option value="ja">JAPONAIS</option>
+                            <option value="ko">CORÉEN</option>
+                            <option value="ar">ARABE</option>
+                            <option value="hi">HINDI</option>
+                            <option value="nl">NÉERLANDAIS</option>
+                            <option value="sv">SUÉDOIS</option>
+                            <option value="da">DANOIS</option>
+                            <option value="no">NORVÉGIEN</option>
+                            <option value="fi">FINNOIS</option>
+                            <option value="pl">POLONAIS</option>
+                            <option value="cs">TCHÈQUE</option>
+                            <option value="hu">HONGROIS</option>
+                            <option value="ro">ROUMAIN</option>
+                            <option value="bg">BULGARE</option>
+                            <option value="hr">CROATE</option>
+                            <option value="sk">SLOVAQUE</option>
+                            <option value="sl">SLOVÈNE</option>
+                            <option value="et">ESTONIEN</option>
+                            <option value="lv">LETTON</option>
+                            <option value="lt">LITUANIEN</option>
+                            <option value="mt">MALTAIS</option>
+                            <option value="ga">IRLANDAIS</option>
+                            <option value="cy">GALLOIS</option>
+                            <option value="eu">BASQUE</option>
+                            <option value="ca">CATALAN</option>
+                            <option value="gl">GALICIEN</option>
+                            <option value="tr">TURC</option>
+                            <option value="he">HÉBREU</option>
+                            <option value="th">THAÏ</option>
+                            <option value="vi">VIETNAMIEN</option>
+                            <option value="id">INDONÉSIEN</option>
+                            <option value="ms">MALAIS</option>
+                            <option value="tl">TAGALOG</option>
+                            <option value="sw">SWAHILI</option>
+                            <option value="af">AFRIKAANS</option>
+                            <option value="is">ISLANDAIS</option>
+                            <option value="mk">MACÉDONIEN</option>
+                            <option value="sq">ALBANAIS</option>
+                            <option value="sr">SERBE</option>
+                            <option value="bs">BOSNIAQUE</option>
+                            <option value="me">MONTÉNÉGRIN</option>
+                            <option value="uk">UKRAINIEN</option>
+                            <option value="be">BIÉLORUSSE</option>
+                            <option value="kk">KAZAKH</option>
+                            <option value="ky">KIRGHIZE</option>
+                            <option value="uz">OUZBEK</option>
+                            <option value="tg">TADJIK</option>
+                            <option value="mn">MONGOL</option>
+                            <option value="ka">GÉORGIEN</option>
+                            <option value="hy">ARMÉNIEN</option>
+                            <option value="az">AZÉRI</option>
+                            <option value="fa">PERSAN</option>
+                            <option value="ur">OURDOU</option>
+                            <option value="bn">BENGALI</option>
+                            <option value="ta">TAMOUL</option>
+                            <option value="te">TÉLOUGOU</option>
+                            <option value="ml">MALAYALAM</option>
+                            <option value="kn">KANNADA</option>
+                            <option value="gu">GUJARATI</option>
+                            <option value="pa">PENDJABI</option>
+                            <option value="mr">MARATHI</option>
+                            <option value="ne">NÉPALAIS</option>
+                            <option value="si">CINGHALAIS</option>
+                            <option value="my">BIRMAN</option>
+                            <option value="km">KHMER</option>
+                            <option value="lo">LAO</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="flex-1 p-4 md:p-5 flex flex-col">
                     <div class="flex-1 flex flex-col h-full">
@@ -263,6 +337,22 @@
             hideLoading();
         }
 
+        function getSelectedLanguage() {
+            const languageSelect = document.getElementById('targetLanguage');
+            return languageSelect ? languageSelect.value : 'en';
+        }
+
+        // Fonction pour mettre à jour l'affichage de la langue
+        function updateLanguageDisplay() {
+            const select = document.getElementById('targetLanguage');
+            const display = document.getElementById('languageDisplay');
+            if (select && display) {
+                const selectedOption = select.options[select.selectedIndex];
+                const languageName = selectedOption.text.toUpperCase();
+                display.textContent = `FRANÇAIS → ${languageName} AVEC SYNTHÈSE VOCALE IA`;
+            }
+        }
+
         async function translateTextRealtime(text) {
             if (!text.trim()) {
                 updateTranslationOutput('');
@@ -275,17 +365,21 @@
             updateTranslationOutput('', true);
 
             try {
+                const targetLang = getSelectedLanguage();
                 const response = await fetch('/translate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ text: text })
+                    body: JSON.stringify({ 
+                        text: text,
+                        target_lang: targetLang
+                    })
                 });
 
                 const data = await response.json();
 
-                if (data.success && data.translated_text) {
+                if (data.translated_text) {
                     updateTranslationOutput(data.translated_text);
                 } else {
                     showError(data.error || 'Erreur lors de la traduction');
@@ -319,19 +413,23 @@
             `;
 
             try {
+                const targetLang = getSelectedLanguage();
                 const response = await fetch('/synthesize', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ text: currentTranslation })
+                    body: JSON.stringify({ 
+                        text: currentTranslation,
+                        lang: targetLang
+                    })
                 });
 
                 const data = await response.json();
 
-                if (data.success && data.audio_data) {
+                if (data.audio) {
                     // Créer et jouer l'audio
-                    currentAudio = new Audio(`data:audio/mp3;base64,${data.audio_data}`);
+                    currentAudio = new Audio(`data:audio/mp3;base64,${data.audio}`);
                     isPlayingAudio = true;
                     
                     currentAudio.play();
@@ -442,33 +540,42 @@
                 // Afficher un indicateur de traitement
                 updateTranslationOutput('Transcription et traduction en cours...', true);
 
-                // Envoyer directement les données audio blob
-                const response = await fetch('/process_audio', {
-                    method: 'POST',
-                    body: audioBlob,
-                    headers: {
-                        'Content-Type': 'audio/webm'
-                    }
-                });
+                // Convertir l'audio blob en base64
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                
+                reader.onloadend = async function() {
+                    const base64Audio = reader.result;
+                    const targetLang = getSelectedLanguage();
+                    
+                    try {
+                        const response = await fetch('/process_audio', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                audio: base64Audio,
+                                target_lang: targetLang
+                            })
+                        });
 
-                const data = await response.json();
+                        const data = await response.json();
 
-                if (data.success) {
-                    // Mettre à jour le champ de texte avec le texte reconnu
-                    if (data.recognized_text) {
-                        document.getElementById('textInput').value = data.recognized_text;
-                        // Déclencher l'événement input pour la traduction en temps réel
-                        document.getElementById('textInput').dispatchEvent(new Event('input'));
+                        if (data.recognized_text && data.translated_text) {
+                            // Mettre à jour le champ de texte avec le texte reconnu
+                            document.getElementById('textInput').value = data.recognized_text;
+                            // Afficher la traduction
+                            updateTranslationOutput(data.translated_text);
+                        } else {
+                            showError(data.error || 'Erreur lors du traitement audio');
+                        }
+                    } catch (error) {
+                        showError('Erreur de connexion: ' + error.message);
                     }
-                    // Afficher la traduction
-                    if (data.translated_text) {
-                        updateTranslationOutput(data.translated_text);
-                    }
-                } else {
-                    showError(data.error || 'Erreur lors du traitement audio');
-                }
+                };
             } catch (error) {
-                showError('Erreur de connexion: ' + error.message);
+                showError('Erreur de traitement: ' + error.message);
             }
         }
 
@@ -489,10 +596,31 @@
 
 
 
+        // Fonction pour gérer le changement de langue
+        function handleLanguageChange() {
+            // Mettre à jour l'affichage de la langue
+            updateLanguageDisplay();
+            
+            const text = document.getElementById('textInput').value;
+            if (text.trim()) {
+                // Retraduite le texte existant dans la nouvelle langue
+                translateTextRealtime(text);
+            }
+        }
+
         // Initialisation des event listeners
         document.addEventListener('DOMContentLoaded', function() {
             // Event listener pour la traduction en temps réel
             document.getElementById('textInput').addEventListener('input', handleTextInput);
+            
+            // Event listener pour le changement de langue
+            const languageSelect = document.getElementById('targetLanguage');
+            if (languageSelect) {
+                languageSelect.addEventListener('change', handleLanguageChange);
+            }
+            
+            // Initialiser l'affichage de la langue au chargement
+            updateLanguageDisplay();
         });
     </script>
 </body>
