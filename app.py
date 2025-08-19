@@ -81,7 +81,9 @@ def is_text_corrupted(text):
         return True
     
     # Détecter les répétitions de syllabes (comme "Tagalag Tagalag")
-    if len(set(words)) < len(words) * 0.5 and len(words) > 4:
+    # Exclure les langues asiatiques qui peuvent avoir des structures différentes
+    has_asian_chars = any(ord(char) > 0x4E00 for char in text)  # Caractères CJK
+    if not has_asian_chars and len(set(words)) < len(words) * 0.5 and len(words) > 4:
         return True
     
     return False
@@ -90,8 +92,17 @@ def translate_text(text, target_lang='en'):
     """Traduit le texte français vers la langue cible spécifiée avec validation"""
     
     try:
+        # Mapping pour corriger les codes de langue chinois
+        lang_mapping = {
+            'zh-cn': 'zh-CN',  # Chinois simplifié
+            'zh-tw': 'zh-TW'   # Chinois traditionnel
+        }
+        
+        # Utiliser le mapping si nécessaire
+        mapped_lang = lang_mapping.get(target_lang, target_lang)
+        
         # Utilisation de GoogleTranslator de deep_translator pour supporter plus de langues
-        translator = GoogleTranslator(source='fr', target=target_lang)
+        translator = GoogleTranslator(source='fr', target=mapped_lang)
         result = translator.translate(text)
         
         # Validation du résultat
@@ -151,7 +162,7 @@ def synthesize_speech(text, lang='en'):
             'eo', 'es', 'et', 'fi', 'fr', 'gu', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 
             'it', 'ja', 'jw', 'km', 'kn', 'ko', 'la', 'lv', 'mk', 'ml', 'mr', 'my', 
             'ne', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'si', 'sk', 'sq', 'sr', 'su', 
-            'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh'
+            'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh', 'zh-tw'
         }
         
         # Utiliser le mapping si disponible, sinon utiliser le code original
