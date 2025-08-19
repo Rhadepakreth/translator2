@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traducteur Français-Anglais avec Synthèse Vocale</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'pulse-recording': 'pulse 1.5s infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+            background: #ffffff;
+            min-height: 100vh;
+            color: #000000;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #000000;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: #000000;
+            color: #ffffff;
+            padding: 40px;
+            text-align: center;
+            border-bottom: 1px solid #000000;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            font-weight: 400;
+            opacity: 0.8;
+        }
+
+        /* Groupe pour les éléments secondaires (file input et bouton) */
+        .input-group.secondary {
+            flex: 0;
+            margin-top: 20px;
+            margin-bottom: 0;
+            min-height: 80px; /* Hauteur fixe pour l'alignement */
+        }
+
+        label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #000000;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 20px 30px;
+            border: 2px solid #000000;
+            background: #ffffff;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-input:hover {
+            background: #f8f8f8;
+        }
+
+        .file-input input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+
+
+        .audio-player {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+    </style>
+</head>
+<body class="font-sans bg-white h-screen text-black leading-relaxed flex items-center justify-center">
+    <div class="max-w-[1200px] max-h-[900px] w-[70vw] bg-white border border-black">
+        <div class="bg-black text-white p-6 md:p-10 text-center border-b border-black">
+            <h1 class="text-2xl md:text-4xl mb-2.5 font-bold tracking-tight">TRADUCTEUR INTELLIGENT</h1>
+             <p class="text-base md:text-lg font-normal opacity-80">FRANÇAIS → ANGLAIS AVEC SYNTHÈSE VOCALE IA</p>
+        </div>
+
+        <div class="flex md:flex-row flex-col h-auto">
+            <!-- Panneau d'entrée français -->
+            <div class="flex-1 flex flex-col border-r md:border-r border-b md:border-b-0 border-black min-h-[300px] md:min-h-0">
+                <div class="p-4 md:p-5 border-b border-black bg-gray-50">
+                    <h2 class="text-sm font-bold uppercase tracking-wider m-0">
+                        <svg class="inline-block w-4 h-4 mr-2 align-middle" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="6" fill="#000000"/>
+                        </svg>
+                        FRANÇAIS
+                    </h2>
+                </div>
+                <div class="flex-1 p-4 md:p-5 flex flex-col">
+                    <div class="flex-1 flex flex-col justify-between">
+                        <div class="flex-1 flex flex-col">
+                            <textarea id="textInput" placeholder="Saisissez votre texte en français..." class="w-full p-4 md:p-5 border border-gray-300 text-sm md:text-base resize-none flex-1 min-h-[150px] md:min-h-[200px] transition-all duration-200 font-sans box-border bg-white text-black focus:outline-none focus:border-black"></textarea>
+                        </div>
+                        <div class="flex-none mt-5 mb-0 min-h-[80px] flex flex-col justify-end">
+                            <button id="recordBtn" class="p-4 md:p-5 border-2 border-gray-500 bg-gray-50 text-gray-500 text-xs md:text-sm font-semibold cursor-pointer transition-all duration-200 uppercase tracking-wide font-sans min-h-[50px] md:min-h-[60px] flex items-center justify-center hover:bg-gray-100 hover:border-gray-600 hover:text-gray-600" onclick="toggleRecording()">
+                                <svg class="inline-block w-4 h-4 mr-2 align-middle" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                                </svg>
+                                <span id="recordBtnText">DÉMARRER ENREGISTREMENT</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panneau de sortie anglais -->
+            <div class="flex-1 flex flex-col min-h-[300px] md:min-h-0">
+                <div class="p-4 md:p-5 border-b border-black bg-gray-50">
+                    <h2 class="text-sm font-bold uppercase tracking-wider m-0">
+                        <svg class="inline-block w-4 h-4 mr-2 align-middle" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12" fill="#000000"/>
+                        </svg>
+                        ANGLAIS
+                    </h2>
+                </div>
+                <div class="flex-1 p-4 md:p-5 flex flex-col">
+                    <div class="flex-1 flex flex-col h-full">
+                        <div class="flex-1 flex flex-col">
+                            <div id="translationOutput" class="w-full p-4 md:p-5 border border-gray-300 text-sm md:text-base resize-none flex-1 min-h-[150px] md:min-h-[200px] transition-all duration-200 font-inherit box-border bg-gray-50 text-gray-600 overflow-y-auto leading-6">La traduction apparaîtra ici...</div>
+                        </div>
+                        <div class="flex-none mt-5 mb-0 min-h-[80px] flex flex-col justify-end">
+                            <button class="p-4 md:p-5 px-5 md:px-7 border-2 border-black bg-black text-white text-xs md:text-sm font-semibold cursor-pointer transition-all duration-200 uppercase tracking-wide font-sans min-h-[50px] md:min-h-[60px] flex items-center justify-center hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed" id="audioBtn" onclick="generateAndPlayAudio()" disabled>
+                                <svg class="inline-block w-4 h-4 mr-2 align-middle" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                                </svg>
+                                GÉNÉRER ET LIRE L'AUDIO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="hidden text-center p-10" id="loading">
+            <div class="border-4 border-gray-200 border-t-black w-10 h-10 animate-spin mx-auto mb-5 rounded-full"></div>
+            <p>TRAITEMENT EN COURS...</p>
+        </div>
+
+        <div class="mt-10 hidden" id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        let translationTimeout;
+        let currentTranslation = '';
+        let isTranslating = false;
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let currentAudio = null;
+        let isPlayingAudio = false;
+
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        function updateTranslationOutput(text, isLoading = false) {
+            const output = document.getElementById('translationOutput');
+            const audioBtn = document.getElementById('audioBtn');
+            
+            if (isLoading) {
+                output.textContent = 'Traduction en cours...';
+                output.className = 'w-full p-5 border border-gray-300 text-base resize-none flex-1 min-h-[200px] transition-all duration-200 font-sans box-border bg-gray-50 text-gray-600 overflow-y-auto leading-relaxed';
+                audioBtn.disabled = true;
+            } else if (text) {
+                output.textContent = text;
+                output.className = 'w-full p-5 border border-gray-300 text-base resize-none flex-1 min-h-[200px] transition-all duration-200 font-sans box-border bg-white text-black overflow-y-auto leading-relaxed';
+                currentTranslation = text;
+                audioBtn.disabled = false;
+            } else {
+                output.textContent = 'La traduction apparaîtra ici...';
+                output.className = 'w-full p-5 border border-gray-300 text-base resize-none flex-1 min-h-[200px] transition-all duration-200 font-sans box-border bg-gray-50 text-gray-600 overflow-y-auto leading-relaxed';
+                currentTranslation = '';
+                audioBtn.disabled = true;
+            }
+        }
+
+        function showError(message) {
+            updateTranslationOutput(`Erreur: ${message}`);
+            hideLoading();
+        }
+
+        async function translateTextRealtime(text) {
+            if (!text.trim()) {
+                updateTranslationOutput('');
+                return;
+            }
+
+            if (isTranslating) return;
+            
+            isTranslating = true;
+            updateTranslationOutput('', true);
+
+            try {
+                const response = await fetch('/translate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.translated_text) {
+                    updateTranslationOutput(data.translated_text);
+                } else {
+                    showError(data.error || 'Erreur lors de la traduction');
+                }
+            } catch (error) {
+                showError('Erreur de connexion: ' + error.message);
+            } finally {
+                isTranslating = false;
+            }
+        }
+
+        async function generateAndPlayAudio() {
+            if (!currentTranslation) return;
+
+            const audioBtn = document.getElementById('audioBtn');
+            
+            // Si l'audio est en cours de lecture, l'arrêter
+            if (isPlayingAudio && currentAudio) {
+                stopAudio();
+                return;
+            }
+            
+            const originalText = audioBtn.innerHTML;
+            
+            audioBtn.disabled = true;
+            audioBtn.innerHTML = `
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                GÉNÉRATION EN COURS...
+            `;
+
+            try {
+                const response = await fetch('/synthesize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: currentTranslation })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.audio_data) {
+                    // Créer et jouer l'audio
+                    currentAudio = new Audio(`data:audio/mp3;base64,${data.audio_data}`);
+                    isPlayingAudio = true;
+                    
+                    currentAudio.play();
+                    
+                    audioBtn.innerHTML = `
+                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                            <path d="M6 6h12v12H6z"/>
+                        </svg>
+                        ARRÊTER L'AUDIO
+                    `;
+                    audioBtn.disabled = false;
+                    
+                    currentAudio.onended = () => {
+                        resetAudioButton();
+                    };
+                } else {
+                    throw new Error(data.error || 'Erreur lors de la génération audio');
+                }
+            } catch (error) {
+                showError('Erreur audio: ' + error.message);
+                resetAudioButton();
+            }
+        }
+        
+        function stopAudio() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+            resetAudioButton();
+        }
+        
+        function resetAudioButton() {
+            const audioBtn = document.getElementById('audioBtn');
+            isPlayingAudio = false;
+            audioBtn.innerHTML = `
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                </svg>
+                GÉNÉRER ET LIRE L'AUDIO
+            `;
+            audioBtn.disabled = !currentTranslation;
+        }
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    processRecordedAudio(audioBlob);
+                    
+                    // Arrêter le stream pour libérer le microphone
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                updateRecordingUI(true);
+
+            } catch (error) {
+                showError('Erreur d\'accès au microphone: ' + error.message);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                updateRecordingUI(false);
+            }
+        }
+
+        function updateRecordingUI(recording) {
+            const recordBtn = document.getElementById('recordBtn');
+            const recordBtnText = document.getElementById('recordBtnText');
+            
+            if (recording) {
+                recordBtn.classList.add('bg-red-500', 'border-red-500', 'text-white', 'animate-pulse');
+                recordBtn.classList.remove('bg-gray-50', 'border-gray-500', 'text-gray-500');
+                recordBtnText.textContent = 'ARRÊTER ENREGISTREMENT';
+                recordBtn.querySelector('svg path').setAttribute('d', 'M6 6h12v12H6z'); // Icône stop
+            } else {
+                recordBtn.classList.remove('bg-red-500', 'border-red-500', 'text-white', 'animate-pulse');
+                recordBtn.classList.add('bg-gray-50', 'border-gray-500', 'text-gray-500');
+                recordBtnText.textContent = 'DÉMARRER ENREGISTREMENT';
+                recordBtn.querySelector('svg path').setAttribute('d', 'M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z'); // Icône micro
+            }
+        }
+
+        async function processRecordedAudio(audioBlob) {
+            try {
+                // Afficher un indicateur de traitement
+                updateTranslationOutput('Transcription et traduction en cours...', true);
+
+                // Envoyer directement les données audio blob
+                const response = await fetch('/process_audio', {
+                    method: 'POST',
+                    body: audioBlob,
+                    headers: {
+                        'Content-Type': 'audio/webm'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Mettre à jour le champ de texte avec le texte reconnu
+                    if (data.recognized_text) {
+                        document.getElementById('textInput').value = data.recognized_text;
+                        // Déclencher l'événement input pour la traduction en temps réel
+                        document.getElementById('textInput').dispatchEvent(new Event('input'));
+                    }
+                    // Afficher la traduction
+                    if (data.translated_text) {
+                        updateTranslationOutput(data.translated_text);
+                    }
+                } else {
+                    showError(data.error || 'Erreur lors du traitement audio');
+                }
+            } catch (error) {
+                showError('Erreur de connexion: ' + error.message);
+            }
+        }
+
+        // Fonction de traduction en temps réel avec debounce
+        function handleTextInput() {
+            const text = document.getElementById('textInput').value;
+            
+            // Annuler le timeout précédent
+            if (translationTimeout) {
+                clearTimeout(translationTimeout);
+            }
+            
+            // Programmer une nouvelle traduction après 500ms
+            translationTimeout = setTimeout(() => {
+                translateTextRealtime(text);
+            }, 500);
+        }
+
+
+
+        // Initialisation des event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Event listener pour la traduction en temps réel
+            document.getElementById('textInput').addEventListener('input', handleTextInput);
+        });
+    </script>
+</body>
+</html>
