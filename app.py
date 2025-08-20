@@ -53,10 +53,17 @@ def init_models():
     translation_model = MarianMTModel.from_pretrained(model_name)
     translation_model.to(device)
     
-    # Reconnaissance vocale
+    # Reconnaissance vocale avec paramètres optimisés
     speech_recognizer = sr.Recognizer()
     
-    print("Tous les modèles sont initialisés!")
+    # Configuration optimale pour la reconnaissance vocale
+    speech_recognizer.energy_threshold = 300  # Seuil d'énergie pour détecter la parole
+    speech_recognizer.dynamic_energy_threshold = True  # Ajustement automatique du seuil
+    speech_recognizer.pause_threshold = 0.8  # Durée de pause pour considérer la fin d'une phrase
+    speech_recognizer.phrase_threshold = 0.3  # Durée minimale pour considérer un son comme parole
+    speech_recognizer.non_speaking_duration = 0.5  # Durée de silence avant d'arrêter l'écoute
+    
+    print("Tous les modèles sont initialisés avec des paramètres optimisés!")
 
 def is_text_corrupted(text):
     """Vérifie si le texte traduit est corrompu (répétitions anormales, caractères étranges)"""
@@ -204,7 +211,7 @@ def synthesize_speech(text, lang='en'):
         raise Exception(f"Erreur lors de la génération audio: {str(e)}")
 
 def recognize_speech_from_file(audio_file_path):
-    """Reconnaissance vocale à partir d'un fichier audio avec conversion automatique"""
+    """Reconnaissance vocale à partir d'un fichier audio avec conversion automatique et optimisations"""
     try:
         # Détecter l'extension du fichier
         file_extension = os.path.splitext(audio_file_path)[1].lower()
@@ -216,11 +223,18 @@ def recognize_speech_from_file(audio_file_path):
             # Charger le fichier audio avec pydub
             audio_segment = AudioSegment.from_file(audio_file_path)
             
+            # Normaliser l'audio pour améliorer la reconnaissance
+            audio_segment = audio_segment.normalize()
+            
+            # Augmenter le volume si nécessaire
+            if audio_segment.dBFS < -20:
+                audio_segment = audio_segment + (abs(audio_segment.dBFS) - 15)
+            
             # Créer un fichier temporaire WAV
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
                 wav_path = tmp_wav.name
-                # Exporter en WAV
-                audio_segment.export(wav_path, format='wav')
+                # Exporter en WAV avec une qualité optimisée
+                audio_segment.export(wav_path, format='wav', parameters=["-ar", "16000", "-ac", "1"])
             
             # Utiliser le fichier WAV converti
             converted_file_path = wav_path
@@ -230,23 +244,53 @@ def recognize_speech_from_file(audio_file_path):
             converted_file_path = audio_file_path
             should_cleanup = False
         
-        # Reconnaissance vocale
+        # Optimiser les paramètres du recognizer
+        speech_recognizer.energy_threshold = 300  # Ajuster selon le bruit ambiant
+        speech_recognizer.dynamic_energy_threshold = True
+        speech_recognizer.pause_threshold = 0.8  # Pause plus courte entre les mots
+        speech_recognizer.phrase_threshold = 0.3  # Seuil pour détecter le début de phrase
+        
+        # Reconnaissance vocale avec ajustement automatique du bruit
         with sr.AudioFile(converted_file_path) as source:
+            # Ajuster automatiquement pour le bruit ambiant
+            speech_recognizer.adjust_for_ambient_noise(source, duration=0.5)
             audio = speech_recognizer.record(source)
-            # Reconnaissance en français
-            text = speech_recognizer.recognize_google(audio, language='fr-FR')
+            
+            # Essayer plusieurs langues dans l'ordre de priorité
+            languages_to_try = ['fr-FR', 'en-US', 'es-ES', 'it-IT', 'de-DE']
+            
+            for lang in languages_to_try:
+                try:
+                    print(f"Tentative de reconnaissance en {lang}...")
+                    text = speech_recognizer.recognize_google(audio, language=lang)
+                    if text and len(text.strip()) > 0:
+                        print(f"Reconnaissance réussie en {lang}: {text}")
+                        break
+                except sr.UnknownValueError:
+                    continue
+                except sr.RequestError:
+                    continue
+            else:
+                # Si aucune langue n'a fonctionné, essayer sans spécifier de langue
+                try:
+                    text = speech_recognizer.recognize_google(audio)
+                    print(f"Reconnaissance réussie sans langue spécifiée: {text}")
+                except:
+                    text = None
         
         # Nettoyer le fichier temporaire si nécessaire
         if should_cleanup:
             os.unlink(converted_file_path)
         
-        return text
+        return text if text else "Impossible de comprendre l'audio"
         
     except sr.UnknownValueError:
         return "Impossible de comprendre l'audio"
     except sr.RequestError as e:
+        print(f"Erreur du service de reconnaissance vocale: {e}")
         return f"Erreur du service de reconnaissance vocale: {e}"
     except Exception as e:
+        print(f"Erreur lors de la reconnaissance vocale: {e}")
         return f"Erreur lors de la reconnaissance vocale: {e}"
 
 @app.route('/')
