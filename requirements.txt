@@ -15,3 +15,7 @@ sacremoses
 gTTS
 pydub
 ffmpeg-python
+# Nouvelles dépendances pour la version LLM
+mistralai>=0.4.0
+python-dotenv>=1.0.0
+deep-translator>=1.11.4
